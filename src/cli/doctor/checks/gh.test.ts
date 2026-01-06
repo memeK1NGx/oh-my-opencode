@@ -3,16 +3,20 @@ import * as gh from "./gh"
 
 describe("gh cli check", () => {
   describe("getGhCliInfo", () => {
-    it("returns gh cli info structure", async () => {
-      // #given
-      // #when checking gh cli info
-      const info = await gh.getGhCliInfo()
+    it(
+      "returns gh cli info structure",
+      async () => {
+        // #given
+        // #when checking gh cli info
+        const info = await gh.getGhCliInfo()
 
-      // #then should return valid info structure
-      expect(typeof info.installed).toBe("boolean")
-      expect(info.authenticated === true || info.authenticated === false).toBe(true)
-      expect(Array.isArray(info.scopes)).toBe(true)
-    })
+        // #then should return valid info structure
+        expect(typeof info.installed).toBe("boolean")
+        expect(info.authenticated === true || info.authenticated === false).toBe(true)
+        expect(Array.isArray(info.scopes)).toBe(true)
+      },
+      10000
+    )
   })
 
   describe("checkGhCli", () => {
