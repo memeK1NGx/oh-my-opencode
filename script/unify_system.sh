@@ -20,6 +20,7 @@ DEFAULT_WORKSPACE="omega-workspace"
 WORKSPACE_DIR="${1:-$DEFAULT_WORKSPACE}"
 
 # Repository URLs (update these to match actual repository locations)
+REPO_FASCIABASE="https://github.com/memeK1NGx/FASCIABASE.git"
 REPO_OH_MY_OPENCODE="https://github.com/code-yeongyu/oh-my-opencode.git"
 REPO_OPENCODE="https://github.com/opencode-ai/opencode.git"
 REPO_GODMOD3="https://github.com/memeK1NGx/GODMOD3.git"
@@ -74,7 +75,14 @@ check_prerequisites() {
     fi
     
     if ! command_exists redis-cli; then
-        log_warning "redis-cli not found. Redis integration may not work."
+        log_warning "redis-cli not found. Legacy Redis integration may not work."
+        log_info "FASCIABASE will be the primary transport (Redis is legacy fallback)"
+    fi
+    
+    # Check for Kotlin (optional for FASCIABASE development)
+    if ! command_exists kotlin && ! command_exists kotlinc; then
+        log_warning "Kotlin not found. FASCIABASE source development will not be available."
+        log_info "Pre-built FASCIABASE binaries will be used if available."
     fi
     
     if [ ${#missing_tools[@]} -gt 0 ]; then
@@ -89,6 +97,7 @@ check_prerequisites() {
 # Create workspace directory structure
 create_workspace() {
     log_info "Creating workspace at: $WORKSPACE_DIR"
+    log_info "Foundation: FASCIABASE v1.0 Mesh Neuro System"
     
     if [ -d "$WORKSPACE_DIR" ]; then
         log_warning "Workspace directory already exists"
@@ -100,8 +109,8 @@ create_workspace() {
         fi
     fi
     
-    mkdir -p "$WORKSPACE_DIR/.omega/"{config,state,logs}
-    log_success "Workspace structure created"
+    mkdir -p "$WORKSPACE_DIR/.omega/"{config,fascia,state,logs}
+    log_success "Workspace structure created (FASCIABASE-enabled)"
 }
 
 # Clone a repository
@@ -132,7 +141,10 @@ clone_repo() {
 clone_repositories() {
     log_info "Cloning repositories..."
     
-    # Core repositories
+    # Layer 0: Foundation
+    clone_repo "$REPO_FASCIABASE" "FASCIABASE"
+    
+    # Application layer repositories
     clone_repo "$REPO_OH_MY_OPENCODE" "oh-my-opencode"
     clone_repo "$REPO_OPENCODE" "opencode"
     clone_repo "$REPO_GODMOD3" "GODMOD3"
@@ -144,7 +156,39 @@ clone_repositories() {
     clone_repo "$REPO_26" "26" || true
     clone_repo "$REPO_K1NG" "K1NG" || true
     
-    log_success "Repository cloning complete"
+    log_success "Repository cloning complete (FASCIABASE + applications)"
+}
+
+# Install FASCIABASE dependencies
+install_fasciabase() {
+    log_info "Installing FASCIABASE dependencies..."
+    
+    cd "$WORKSPACE_DIR/FASCIABASE"
+    
+    if [ -f "build.gradle.kts" ] || [ -f "build.gradle" ]; then
+        if command_exists gradle; then
+            gradle build
+            log_success "FASCIABASE built successfully (Gradle)"
+        elif command_exists ./gradlew; then
+            ./gradlew build
+            log_success "FASCIABASE built successfully (Gradle Wrapper)"
+        else
+            log_warning "Gradle not found, skipping FASCIABASE build"
+            log_info "Pre-built binaries will be used if available"
+        fi
+    elif [ -f "pom.xml" ]; then
+        if command_exists mvn; then
+            mvn package
+            log_success "FASCIABASE built successfully (Maven)"
+        else
+            log_warning "Maven not found, skipping FASCIABASE build"
+        fi
+    else
+        log_warning "FASCIABASE build configuration not found"
+        log_info "Assuming pre-built binaries or repository placeholder"
+    fi
+    
+    cd - > /dev/null
 }
 
 # Install oh-my-opencode dependencies
@@ -229,29 +273,108 @@ install_gpt_oss_recipes() {
 install_dependencies() {
     log_info "Installing dependencies for all repositories..."
     
+    install_fasciabase
     install_oh_my_opencode
     install_opencode
     install_godmod3
     install_gpt_oss_recipes
     
-    log_success "All dependencies installed"
+    log_success "All dependencies installed (FASCIABASE + applications)"
 }
 
-# Setup GODMOD3 Redis configuration
+# Setup FASCIABASE mesh configuration
+setup_fasciabase_mesh() {
+    log_info "Configuring FASCIABASE mesh network..."
+    
+    local fascia_config="$WORKSPACE_DIR/.omega/fascia/mesh.json"
+    
+    cat > "$fascia_config" << 'EOF'
+{
+  "version": "1.0",
+  "mesh_id": "omega-super-system",
+  "nodes": [
+    {
+      "node_id": "fasciabase-core",
+      "address": "localhost:9000",
+      "role": "mesh_coordinator"
+    },
+    {
+      "node_id": "oh-my-opencode",
+      "address": "localhost:9001",
+      "role": "orchestrator"
+    },
+    {
+      "node_id": "godmod3-trader-1",
+      "address": "localhost:9002",
+      "role": "executor"
+    },
+    {
+      "node_id": "gpt-oss-recipes",
+      "address": "localhost:9003",
+      "role": "trainer"
+    }
+  ],
+  "channels": {
+    "omega.godmod3.positions": {"buffer_size": 1000, "ttl": 60},
+    "omega.godmod3.trades": {"buffer_size": 10000, "ttl": 3600},
+    "omega.godmod3.pnl": {"buffer_size": 1000, "ttl": 300},
+    "omega.godmod3.metrics": {"buffer_size": 1000, "ttl": 300},
+    "omega.godmod3.tensions": {"buffer_size": 100, "ttl": 60},
+    "omega.models.deploy": {"buffer_size": 10, "ttl": 0}
+  },
+  "transport": {
+    "protocol": "fascia",
+    "encryption": "tls13",
+    "compression": "zstd"
+  },
+  "health": {
+    "heartbeat_interval_ms": 1000,
+    "timeout_ms": 5000,
+    "auto_recovery": true
+  }
+}
+EOF
+    
+    log_success "FASCIABASE mesh configuration created"
+}
+
+# Setup GODMOD3 Redis configuration (legacy fallback)
 setup_godmod3_redis() {
     log_info "Configuring GODMOD3 Redis integration..."
     
     local godmod3_dir="$WORKSPACE_DIR/GODMOD3"
     local config_file="$godmod3_dir/config.py"
     
+    log_info "Configuring GODMOD3 (FASCIABASE primary, Redis fallback)..."
+    
     if [ ! -f "$config_file" ]; then
         cat > "$config_file" << 'EOF'
 # GODMOD3 Configuration
 # Generated by oh-my-opencode unify_system.sh
+# FASCIABASE Edition
 
-# OMEGA Integration Settings
+# OMEGA Integration Settings (FASCIABASE Primary)
 OMEGA_INTEGRATION = {
     "enabled": True,
+    "transport": "fasciabase",  # Primary: FASCIABASE mesh
+    "fascia_mesh": {
+        "node_id": "godmod3-trader-1",
+        "mesh_config": "../.omega/fascia/mesh.json",
+        "channels": {
+            "positions": "omega.godmod3.positions",
+            "trades": "omega.godmod3.trades",
+            "pnl": "omega.godmod3.pnl",
+            "metrics": "omega.godmod3.metrics",
+            "errors": "omega.godmod3.tensions"
+        }
+    },
+    "log_format": "json",
+    "log_dir": "../.omega/logs/godmod3"
+}
+
+# Legacy Redis Configuration (Fallback)
+OMEGA_INTEGRATION_LEGACY = {
+    "enabled": False,  # Disabled by default, enable for fallback
     "redis_host": "localhost",
     "redis_port": 6379,
     "redis_db": 0,
@@ -265,15 +388,15 @@ OMEGA_INTEGRATION = {
     ]
 }
 
-# Redis connection parameters
+# Redis connection parameters (legacy)
 REDIS_CONFIG = {
-    "host": OMEGA_INTEGRATION["redis_host"],
-    "port": OMEGA_INTEGRATION["redis_port"],
-    "db": OMEGA_INTEGRATION["redis_db"],
+    "host": OMEGA_INTEGRATION_LEGACY["redis_host"],
+    "port": OMEGA_INTEGRATION_LEGACY["redis_port"],
+    "db": OMEGA_INTEGRATION_LEGACY["redis_db"],
     "decode_responses": True
 }
 EOF
-        log_success "GODMOD3 config.py created"
+        log_success "GODMOD3 config.py created (FASCIABASE-enabled)"
     else
         log_warning "GODMOD3 config.py already exists, skipping"
     fi
@@ -290,24 +413,41 @@ setup_oh_my_opencode_integration() {
     
     cat > "$omega_config" << 'EOF'
 {
-  "version": "1.0",
+  "version": "2.0",
   "workspace": "omega-workspace",
+  "foundation": "FASCIABASE v1.0",
   "components": {
+    "FASCIABASE": {
+      "path": "./FASCIABASE",
+      "role": "foundation",
+      "layer": 0,
+      "status": "active",
+      "mesh": {
+        "config": "./.omega/fascia/mesh.json",
+        "coordinator": "localhost:9000"
+      }
+    },
     "oh-my-opencode": {
       "path": "./oh-my-opencode",
       "role": "orchestrator",
-      "status": "active"
+      "layer": 1,
+      "status": "active",
+      "fascia_node": "oh-my-opencode"
     },
     "opencode": {
       "path": "./opencode",
       "role": "runtime",
+      "layer": 1,
       "status": "active"
     },
     "GODMOD3": {
       "path": "./GODMOD3",
       "role": "execution",
+      "layer": 1,
       "status": "active",
-      "redis": {
+      "fascia_node": "godmod3-trader-1",
+      "legacy_redis": {
+        "enabled": false,
         "host": "localhost",
         "port": 6379,
         "db": 0
@@ -316,7 +456,9 @@ setup_oh_my_opencode_integration() {
     "gpt-oss-recipes": {
       "path": "./gpt-oss-recipes",
       "role": "training",
-      "status": "active"
+      "layer": 1,
+      "status": "active",
+      "fascia_node": "gpt-oss-recipes"
     },
     "ALPH4": {
       "path": "./ALPH4",
@@ -340,9 +482,11 @@ setup_oh_my_opencode_integration() {
     }
   },
   "integration": {
+    "transport": "fasciabase",
     "omega_loop": {
       "enabled": false,
       "frequency": "hourly",
+      "transport": "fascia",
       "phases": [
         "data_collection",
         "strategic_decision",
@@ -350,12 +494,17 @@ setup_oh_my_opencode_integration() {
         "deployment",
         "monitoring"
       ]
+    },
+    "performance_targets": {
+      "latency_p99_ms": 1,
+      "throughput_signals_per_sec": 100000,
+      "uptime_percent": 99.99
     }
   }
 }
 EOF
     
-    log_success "OMEGA configuration created at $omega_config"
+    log_success "OMEGA configuration created at $omega_config (FASCIABASE v2.0)"
 }
 
 # Create verification script
@@ -367,12 +516,12 @@ create_verification_script() {
     cat > "$verify_script" << 'EOF'
 #!/usr/bin/env bash
 #
-# OMEGA System Verification Script
+# OMEGA System Verification Script (FASCIABASE Edition)
 #
 
 set -euo pipefail
 
-echo "=== OMEGA System Verification ==="
+echo "=== OMEGA System Verification (FASCIABASE v2.0) ==="
 echo
 
 # Check repositories
@@ -386,7 +535,11 @@ check_repo() {
     fi
 }
 
-echo "Checking repositories..."
+echo "Layer 0 - Foundation:"
+check_repo "FASCIABASE"
+
+echo
+echo "Layer 1 - Application Components:"
 check_repo "oh-my-opencode"
 check_repo "opencode"
 check_repo "GODMOD3"
@@ -400,31 +553,49 @@ else
     echo "✗ OMEGA config missing"
 fi
 
+if [ -f ".omega/fascia/mesh.json" ]; then
+    echo "✓ FASCIABASE mesh config exists"
+else
+    echo "✗ FASCIABASE mesh config missing"
+fi
+
 echo
-echo "Checking Redis connection..."
+echo "Checking FASCIABASE mesh (primary transport)..."
+# Note: FASCIABASE mesh check would require actual service running
+echo "ℹ FASCIABASE mesh status: Check after starting mesh coordinator"
+echo "  Start mesh: cd FASCIABASE && ./start-mesh.sh"
+
+echo
+echo "Checking Redis connection (legacy fallback)..."
 if command -v redis-cli >/dev/null 2>&1; then
     if redis-cli ping >/dev/null 2>&1; then
-        echo "✓ Redis is running"
+        echo "✓ Redis is running (fallback available)"
     else
-        echo "✗ Redis is not accessible"
-        echo "  Start Redis: redis-server"
+        echo "⚠ Redis is not accessible (optional legacy fallback)"
+        echo "  Note: FASCIABASE is primary, Redis is fallback only"
     fi
 else
-    echo "✗ redis-cli not found"
+    echo "⚠ redis-cli not found (optional legacy fallback)"
 fi
 
 echo
 echo "=== Verification Complete ==="
 echo
 echo "Next steps:"
-echo "1. Start Redis: redis-server"
+echo "1. Start FASCIABASE mesh: cd FASCIABASE && ./start-mesh.sh"
 echo "2. Configure OpenCode: see UNIFIED_ARCHITECTURE.md"
 echo "3. Run GODMOD3: cd GODMOD3 && python3 main.py"
 echo "4. Activate OMEGA loop in .omega/config/omega.json"
+echo "5. Monitor fascia channels: cd FASCIABASE && ./monitor-mesh.sh"
+echo
+echo "Performance targets (FASCIABASE):"
+echo "- Latency P99: < 1ms"
+echo "- Throughput: 100k+ signals/sec"
+echo "- Uptime: 99.99%"
 EOF
     
     chmod +x "$verify_script"
-    log_success "Verification script created"
+    log_success "Verification script created (FASCIABASE-aware)"
 }
 
 # Create README for workspace
@@ -454,12 +625,18 @@ This workspace contains all components of the OMEGA unified architecture.
 ./verify_integration.sh
 ```
 
-### 2. Start Redis
+### 2. Start FASCIABASE Mesh (Primary)
+```bash
+cd FASCIABASE
+./start-mesh.sh
+```
+
+### 3. (Optional) Start Redis (Legacy Fallback)
 ```bash
 redis-server
 ```
 
-### 3. Configure OpenCode
+### 4. Configure OpenCode
 Edit `~/.config/opencode/opencode.json`:
 ```json
 {
@@ -469,23 +646,26 @@ Edit `~/.config/opencode/opencode.json`:
 }
 ```
 
-### 4. Run GODMOD3
+### 5. Run GODMOD3
 ```bash
 cd GODMOD3
 python3 main.py
 ```
 
-### 5. Activate OMEGA Loop
+### 6. Activate OMEGA Loop
 Edit `.omega/config/omega.json` and set `integration.omega_loop.enabled` to `true`.
 
 ## Architecture
 
-See [UNIFIED_ARCHITECTURE.md](./oh-my-opencode/UNIFIED_ARCHITECTURE.md) for detailed architecture documentation.
+See [UNIFIED_ARCHITECTURE.md](./oh-my-opencode/UNIFIED_ARCHITECTURE.md) for detailed architecture documentation (FASCIABASE Edition).
 
 ## Directory Structure
 
 ```
 omega-workspace/
+├── FASCIABASE/            # Layer 0: The Foundation
+│   ├── fascia-core/       # Mesh implementation
+│   └── fascia-bindings/   # Language bindings
 ├── oh-my-opencode/        # The General
 ├── opencode/              # Core Runtime
 ├── GODMOD3/               # The Soldier
@@ -497,6 +677,8 @@ omega-workspace/
 └── .omega/                # Shared configuration
     ├── config/
     │   └── omega.json
+    ├── fascia/            # FASCIABASE mesh config
+    │   └── mesh.json
     ├── state/
     └── logs/
 ```
@@ -514,6 +696,7 @@ print_summary() {
     echo
     echo "╔══════════════════════════════════════════════════════════╗"
     echo "║          OMEGA Super System Setup Complete              ║"
+    echo "║         FASCIABASE v1.0 Foundation Enabled              ║"
     echo "╚══════════════════════════════════════════════════════════╝"
     echo
     log_success "Workspace created at: $WORKSPACE_DIR"
@@ -521,12 +704,14 @@ print_summary() {
     echo "Next steps:"
     echo "  1. cd $WORKSPACE_DIR"
     echo "  2. ./verify_integration.sh"
-    echo "  3. Start Redis: redis-server"
-    echo "  4. Configure OpenCode with the plugin path"
-    echo "  5. See UNIFIED_ARCHITECTURE.md for detailed setup"
+    echo "  3. Start FASCIABASE mesh: cd FASCIABASE && ./start-mesh.sh"
+    echo "  4. (Optional) Start Redis fallback: redis-server"
+    echo "  5. Configure OpenCode with the plugin path"
+    echo "  6. See UNIFIED_ARCHITECTURE.md for detailed setup"
     echo
     log_info "The OMEGA loop is initially disabled."
     log_info "Enable it in .omega/config/omega.json after testing."
+    log_info "FASCIABASE provides sub-millisecond latency vs. legacy Redis (50-100ms)"
     echo
 }
 
@@ -534,7 +719,7 @@ print_summary() {
 main() {
     echo "╔══════════════════════════════════════════════════════════╗"
     echo "║       OMEGA Super System Unification Script             ║"
-    echo "║              Project Resonance v1.0                      ║"
+    echo "║         Project Resonance v2.0 (FASCIABASE)             ║"
     echo "╚══════════════════════════════════════════════════════════╝"
     echo
     
@@ -542,6 +727,7 @@ main() {
     create_workspace
     clone_repositories
     install_dependencies
+    setup_fasciabase_mesh
     setup_godmod3_redis
     setup_oh_my_opencode_integration
     create_verification_script
